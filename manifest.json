@@ -1,0 +1,10 @@
+{
+    "name": "TeleportBook",
+    "version_number": "1.0.0",
+    "author": "GrusFz",
+    "website_url": "",
+    "description": "目前游戏中存在一个比较明显的痛点：随着玩家基地不断扩建，建筑物越建越高，动辄十几层甚至几十层。虽然楼梯可以解决垂直移动问题，但每天频繁地上下楼已经成为一件非常痛苦且耗时的事情。相比于反复爬楼，如果能够提供简单易用的基地内快速传送功能，将极大提升游戏体验和建筑玩法的自由度。There is a clear pain point in the current gameplay: as player bases continue to expand, buildings become taller and taller, often reaching dozens of floors. Although stairs solve vertical movement, going up and down repeatedly every day is tedious and time-consuming. Compared with constant stair climbing, an easy and practical in-base fast teleport feature would greatly improve both gameplay comfort and building freedom.",
+    "dependencies": [
+        "UE4SS - v3.0.1 Beta #0 - Git SHA #b50986bd"
+    ]
+}
