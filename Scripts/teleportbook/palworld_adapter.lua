@@ -145,6 +145,20 @@ local function call_method(label, callback)
 	return true
 end
 
+local function is_respawn_rpc_unavailable_error(err)
+	err = tostring(err or "")
+	if err:find("TrivialObject", 1, true) then
+		return true
+	end
+	if err:find("member(type=userdata)", 1, true) then
+		return true
+	end
+	if err:find("CallFunctionByNameWithArguments-unavailable", 1, true) then
+		return true
+	end
+	return false
+end
+
 local function safe_invoke_method(targets, method_name, ...)
 	local args = { ... }
 	local attempts = {}
@@ -176,13 +190,25 @@ local function safe_invoke_method(targets, method_name, ...)
 					table.insert(attempts, string.format("member(%s)", detail))
 				end
 
-				local ok, result = pcall(function()
-					return receiver:CallFunctionByNameWithArguments(method_name)
-				end)
-				if ok and result ~= false then
-					return true, result
+				-- Some UE4SS runtimes expose this member as a non-callable object.
+				-- Only use this fallback for zero-arg methods.
+				if #args == 0 then
+					local reflect_member_ok, reflect_member_or_err = pcall(function()
+						return receiver["CallFunctionByNameWithArguments"]
+					end)
+					if reflect_member_ok and type(reflect_member_or_err) == "function" then
+						local ok, result = pcall(function()
+							return reflect_member_or_err(receiver, method_name)
+						end)
+						if ok and result ~= false then
+							return true, result
+						end
+						table.insert(attempts, string.format("CallFunctionByNameWithArguments(%s)", tostring(result)))
+					else
+						local detail = reflect_member_ok and ("type=" .. type(reflect_member_or_err)) or tostring(reflect_member_or_err)
+						table.insert(attempts, string.format("CallFunctionByNameWithArguments-unavailable(%s)", detail))
+					end
 				end
-				table.insert(attempts, string.format("CallFunctionByNameWithArguments(%s)", tostring(result)))
 			end
 		end
 	end
@@ -301,7 +327,7 @@ local function respawn_teleport(actor, controller, destination)
 		return result_or_err
 	end)
 	if not registered then
-		if tostring(register_err):find("TrivialObject", 1, true) then
+		if is_respawn_rpc_unavailable_error(register_err) then
 			return nil, "respawn rpc unavailable: " .. register_err
 		end
 		return nil, "could not register server respawn location: " .. register_err

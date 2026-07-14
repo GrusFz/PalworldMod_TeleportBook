@@ -1,5 +1,4 @@
-# Mod 功能建议：楼层快速传送
-# Mod Feature Proposal: Fast Floor Teleportation
+# 前言 | Preface
 
 由于个人技术能力有限，暂时无法独立完成这个 Mod 的开发，因此希望有能力的大佬能够考虑实现这个功能。我相信这将帮助到非常多的玩家。
 Due to my current technical limitations, I am unable to complete this mod on my own for now. I sincerely hope skilled mod developers may consider implementing this feature, as I believe it would help a large number of players.
@@ -7,8 +6,7 @@ Due to my current technical limitations, I am unable to complete this mod on my 
 目前游戏中存在一个比较明显的痛点：随着玩家基地不断扩建，建筑物越建越高，动辄十几层甚至几十层。虽然楼梯可以解决垂直移动问题，但每天频繁地上下楼已经成为一件非常痛苦且耗时的事情。相比于反复爬楼，如果能够提供简单易用的基地内快速传送功能，将极大提升游戏体验和建筑玩法的自由度。
 There is a clear pain point in the current gameplay: as player bases continue to expand, buildings become taller and taller, often reaching dozens of floors. Although stairs solve vertical movement, going up and down repeatedly every day is tedious and time-consuming. Compared with constant stair climbing, an easy and practical in-base fast teleport feature would greatly improve both gameplay comfort and building freedom.
 
-## 安装方式
-## Installation
+## 安装方式 | Installation
 
 1. 在 Steam 创意工坊中订阅本 Mod。
 1. Subscribe to this mod on the Steam Workshop.
@@ -23,11 +21,9 @@ There is a clear pain point in the current gameplay: as player bases continue to
 6. 重启游戏（如有需要）。
 6. Restart the game if needed.
 
-## 使用说明
-## Usage Guide
+## 使用说明 | Usage Guide
 
-### 记录传送点
-### Save Teleport Points
+### 记录传送点 | Save Teleport Points
 
 在游戏中到达希望记录的位置后：
 After reaching the location you want to save in-game:
@@ -41,8 +37,7 @@ After reaching the location you want to save in-game:
 - 可在不同楼层、房间或建筑区域记录多个坐标。
 - You can record points across different floors, rooms, or building areas.
 
-### 传送模式
-### Teleport Mode
+### 传送模式 | Teleport Mode
 
 - 按下键盘 **L** 键进入传送模式。
 - Press **L** to enter teleport mode.
