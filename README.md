@@ -37,26 +37,14 @@ After reaching the location you want to save in-game:
 - 可在不同楼层、房间或建筑区域记录多个坐标。
 - You can record points across different floors, rooms, or building areas.
 
-### 传送模式 | Teleport Mode
+### 服务器命令传送 | Server Command Teleport
 
-- 按下键盘 **L** 键进入传送模式。
-- Press **L** to enter teleport mode.
-- 进入传送模式后，按下数字键 **1~9**。
-- After entering teleport mode, press number keys **1-9**.
-
-对应关系如下：
-The mapping is as follows:
-
-- 1 → 传送到 `teleports.json` 中第 1 个坐标
-- 1 -> Teleport to the 1st coordinate in `teleports.json`
-- 2 → 传送到 `teleports.json` 中第 2 个坐标
-- 2 -> Teleport to the 2nd coordinate in `teleports.json`
-- 3 → 传送到 `teleports.json` 中第 3 个坐标
-- 3 -> Teleport to the 3rd coordinate in `teleports.json`
-- ...
-- ...
-- 9 → 传送到 `teleports.json` 中第 9 个坐标
-- 9 -> Teleport to the 9th coordinate in `teleports.json`
+- 在聊天框或服务器命令输入中使用 **`!tp 1`**。
+- Use **`!tp 1`** in chat or the server command input.
+- `1~9` 对应 `teleports.json` 中的第 1~9 个坐标。
+- `1~9` maps to the 1st through 9th coordinates in `teleports.json`.
+- 本 Mod 只识别 `!tp` 前缀，不使用 `/tp`。
+- This mod only recognizes the `!tp` prefix and does not use `/tp`.
 
 通过这种方式，玩家可以快速在基地不同楼层、功能区或建筑之间进行移动，无需再反复攀爬楼梯。
 With this method, players can quickly move between different base floors, functional zones, or buildings without repeatedly climbing stairs.

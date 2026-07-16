@@ -133,87 +133,32 @@ local function read_member(object, member_name)
 	return nil
 end
 
-local function call_method(label, callback)
-	local ok, result = pcall(callback)
-	log(string.format("%s: ok=%s, result=%s", label, tostring(ok), tostring(result)))
-	if not ok then
-		return nil, tostring(result)
+local function read_player_uid_key(player_uid)
+	player_uid = unwrap(player_uid)
+	if not player_uid then
+		return nil
 	end
-	if result == false then
-		return nil, "returned false"
-	end
-	return true
-end
 
-local function is_respawn_rpc_unavailable_error(err)
-	err = tostring(err or "")
-	if err:find("TrivialObject", 1, true) then
-		return true
-	end
-	if err:find("member(type=userdata)", 1, true) then
-		return true
-	end
-	if err:find("CallFunctionByNameWithArguments-unavailable", 1, true) then
-		return true
-	end
-	return false
-end
-
-local function safe_invoke_method(targets, method_name, ...)
-	local args = { ... }
-	local attempts = {}
-
-	for _, target in ipairs(targets or {}) do
-		for _, receiver in ipairs({ target, unwrap(target) }) do
-			if receiver ~= nil then
-				local member_ok, member_or_err = pcall(function()
-					return receiver[method_name]
-				end)
-				if member_ok and type(member_or_err) == "function" then
-					local ok, result = pcall(function()
-						return member_or_err(receiver, table.unpack(args))
-					end)
-					if ok and result ~= false then
-						return true, result
-					end
-					table.insert(attempts, string.format("dot(%s)", tostring(result)))
-
-					ok, result = pcall(function()
-						return member_or_err(table.unpack(args))
-					end)
-					if ok and result ~= false then
-						return true, result
-					end
-					table.insert(attempts, string.format("free(%s)", tostring(result)))
-				else
-					local detail = member_ok and ("type=" .. type(member_or_err)) or tostring(member_or_err)
-					table.insert(attempts, string.format("member(%s)", detail))
-				end
-
-				-- Some UE4SS runtimes expose this member as a non-callable object.
-				-- Only use this fallback for zero-arg methods.
-				if #args == 0 then
-					local reflect_member_ok, reflect_member_or_err = pcall(function()
-						return receiver["CallFunctionByNameWithArguments"]
-					end)
-					if reflect_member_ok and type(reflect_member_or_err) == "function" then
-						local ok, result = pcall(function()
-							return reflect_member_or_err(receiver, method_name)
-						end)
-						if ok and result ~= false then
-							return true, result
-						end
-						table.insert(attempts, string.format("CallFunctionByNameWithArguments(%s)", tostring(result)))
-					else
-						local detail = reflect_member_ok and ("type=" .. type(reflect_member_or_err)) or tostring(reflect_member_or_err)
-						table.insert(attempts, string.format("CallFunctionByNameWithArguments-unavailable(%s)", detail))
-					end
-				end
-			end
+	local parts = {}
+	for _, key in ipairs({ "A", "B", "C", "D" }) do
+		local ok, value = pcall(function()
+			return player_uid[key]
+		end)
+		if ok and value ~= nil then
+			table.insert(parts, tostring(unwrap(value)))
 		end
 	end
+	if #parts > 0 then
+		return table.concat(parts, ":")
+	end
 
-	return nil, table.concat(attempts, " | ")
+	local ok, text = pcall(function()
+		return tostring(player_uid)
+	end)
+	if ok then
+		return text
+	end
+	return nil
 end
 
 local function is_player_in_stage(controller)
@@ -230,135 +175,6 @@ local function is_player_in_stage(controller)
 	return in_stage == true
 end
 
-local function is_player_riding(controller)
-	local ok, riding = pcall(function()
-		return controller:isRiding()
-	end)
-	if ok then
-		return riding == true
-	end
-
-	return false
-end
-
-local function extract_numeric_hp(value, depth)
-	depth = depth or 0
-	if depth > 3 then
-		return nil
-	end
-
-	value = unwrap(value)
-	if type(value) == "number" then
-		return value
-	end
-	if type(value) ~= "table" then
-		return nil
-	end
-
-	for _, key in ipairs({ "CurrentValue", "Value", "HP", "Health", "current", "value", "hp", "health" }) do
-		local nested = value[key]
-		local numeric = extract_numeric_hp(nested, depth + 1)
-		if type(numeric) == "number" then
-			return numeric
-		end
-	end
-
-	return nil
-end
-
-local function get_player_health(actor)
-	local component = read_member(actor, "CharacterParameterComponent")
-	if not is_valid(component) then
-		return nil, "character parameter component is unavailable"
-	end
-	local ok, health = pcall(function()
-		return component:GetHP()
-	end)
-	if not ok or health == nil then
-		return nil, "could not read player HP: " .. tostring(health)
-	end
-
-	local numeric_hp = extract_numeric_hp(health)
-	if type(numeric_hp) ~= "number" then
-		return nil, "could not parse player HP value of type " .. type(unwrap(health))
-	end
-
-	return numeric_hp
-end
-
-local function respawn_teleport(actor, controller, destination)
-	if is_player_riding(controller) then
-		return nil, "get off your mount before using respawn teleport"
-	end
-
-	local transmitter = read_member(controller, "Transmitter")
-	local transmitter_player = transmitter and read_member(transmitter, "Player")
-	if not is_valid(transmitter_player) then
-		return nil, "controller transmitter player is unavailable"
-	end
-
-	local player_state = read_member(controller, "PlayerState")
-	if not is_valid(player_state) then
-		return nil, "player state is unavailable"
-	end
-
-	local uid_ok, player_uid = pcall(function()
-		return controller:GetPlayerUId()
-	end)
-	if not uid_ok or not player_uid then
-		return nil, "could not read player UID: " .. tostring(player_uid)
-	end
-
-	local health, health_err = get_player_health(actor)
-	if not health then
-		return nil, health_err
-	end
-
-	local registered, register_err = call_method("RegisterRespawnLocation_ToServer", function()
-		local ok, result_or_err = safe_invoke_method(
-			{ transmitter_player, transmitter, controller, player_state, actor },
-			"RegisterRespawnLocation_ToServer",
-			player_uid,
-			destination
-		)
-		if not ok then
-			error(result_or_err)
-		end
-		return result_or_err
-	end)
-	if not registered then
-		if is_respawn_rpc_unavailable_error(register_err) then
-			return nil, "respawn rpc unavailable: " .. register_err
-		end
-		return nil, "could not register server respawn location: " .. register_err
-	end
-
-	local requested, request_err = call_method("RequestRespawn", function()
-		local ok, result_or_err = safe_invoke_method({ player_state }, "RequestRespawn")
-		if not ok then
-			error(result_or_err)
-		end
-		return result_or_err
-	end)
-	if not requested then
-		return nil, "could not request respawn: " .. request_err
-	end
-
-	local revived, revive_err = call_method("ReviveCharacter_ToServer", function()
-		local ok, result_or_err = safe_invoke_method({ actor }, "ReviveCharacter_ToServer", health)
-		if not ok then
-			error(result_or_err)
-		end
-		return result_or_err
-	end)
-	if not revived then
-		return nil, "could not request revive: " .. revive_err
-	end
-
-	log(string.format("Respawn teleport requested at preserved HP %.1f.", health))
-	return true
-end
-
 function adapter.get_controller()
 	for _, controller in ipairs(FindAllOf("PalPlayerController") or {}) do
 		if is_valid(controller) then
@@ -372,12 +188,27 @@ function adapter.get_controller()
 	return nil
 end
 
-function adapter.get_player_actor()
-	local controller = adapter.get_controller()
-	if not controller then
-		return nil, nil, "player controller is unavailable"
+function adapter.find_controller_by_player_uid(player_uid)
+	local expected_key = read_player_uid_key(player_uid)
+	if not expected_key then
+		return nil, "sender player UID is unavailable"
 	end
 
+	for _, controller in ipairs(FindAllOf("PalPlayerController") or {}) do
+		if is_valid(controller) then
+			local ok, controller_uid = pcall(function()
+				return controller:GetPlayerUId()
+			end)
+			if ok and read_player_uid_key(controller_uid) == expected_key then
+				return controller
+			end
+		end
+	end
+
+	return nil, "no player controller matched sender UID"
+end
+
+local function get_actor_for_controller(controller)
 	for _, getter in ipairs({
 		function() return controller:GetControlledPawn() end,
 		function() return controller:K2_GetPawn() end,
@@ -387,17 +218,26 @@ function adapter.get_player_actor()
 		local ok, actor = pcall(getter)
 		actor = unwrap(actor)
 		if ok and is_valid(actor) then
-			return actor, controller
+			return actor
 		end
+	end
+	return nil
+end
+
+function adapter.get_player_actor()
+	local controller = adapter.get_controller()
+	if not controller then
+		return nil, nil, "player controller is unavailable"
+	end
+
+	local actor = get_actor_for_controller(controller)
+	if actor then
+		return actor, controller
 	end
 	return nil, controller, "player pawn is unavailable"
 end
 
-function adapter.get_location()
-	local actor, _, err = adapter.get_player_actor()
-	if not actor then
-		return nil, err
-	end
+local function get_actor_location(actor)
 	for _, getter in ipairs({
 		function() return actor:K2_GetActorLocation() end,
 		function() return actor:GetActorLocation() end,
@@ -411,7 +251,19 @@ function adapter.get_location()
 			end
 		end
 	end
-	return nil, "could not read player location"
+	return nil, "could not read actor location"
+end
+
+function adapter.get_location()
+	local actor, _, err = adapter.get_player_actor()
+	if not actor then
+		return nil, err
+	end
+	local location, location_err = get_actor_location(actor)
+	if not location then
+		return nil, location_err
+	end
+	return location
 end
 
 function adapter.set_ui_input_enabled(enabled)
@@ -449,7 +301,7 @@ local function distance_to(point, location)
 	)
 end
 
-local function schedule_post_teleport_check(point, tolerance, delays_ms)
+local function schedule_post_teleport_check(actor, point, tolerance, delays_ms)
 	local execute_in_game_thread_with_delay = rawget(_G, "ExecuteInGameThreadWithDelay")
 	if type(execute_in_game_thread_with_delay) ~= "function" then
 		log("Delayed replication check unavailable in this UE4SS build.")
@@ -459,7 +311,11 @@ local function schedule_post_teleport_check(point, tolerance, delays_ms)
 	for _, delay_ms in ipairs(delays_ms or post_teleport_check_delays_ms) do
 		local ok, err = pcall(function()
 			execute_in_game_thread_with_delay(delay_ms, function()
-				local location, location_err = adapter.get_location()
+				if not is_valid(actor) then
+					log("Post-teleport check skipped: target actor is no longer valid.")
+					return
+				end
+				local location, location_err = get_actor_location(actor)
 				if not location then
 					log("Post-teleport check failed: " .. tostring(location_err))
 					return
@@ -487,11 +343,7 @@ local function schedule_post_teleport_check(point, tolerance, delays_ms)
 	end
 end
 
-function adapter.teleport(point, tolerance)
-	local actor, controller, err = adapter.get_player_actor()
-	if not actor then
-		return nil, err
-	end
+local function teleport_actor_to_point(actor, controller, point, tolerance)
 	local destination, vector_err = make_vector_from_actor(actor, point.x, point.y, point.z)
 	if not destination then
 		return nil, "could not create destination vector: " .. tostring(vector_err)
@@ -511,18 +363,9 @@ function adapter.teleport(point, tolerance)
 		if in_stage then
 			log("Dungeon stage detected; using direct local teleport.")
 		else
-			log("Dedicated-server client detected; requesting server respawn teleport.")
-			local ok, respawn_err = respawn_teleport(actor, controller, destination)
-			if not ok then
-				if tostring(respawn_err):find("respawn rpc unavailable", 1, true) then
-					log("Respawn RPC is unavailable in this runtime; falling back to direct teleport attempt.")
-				else
-					return nil, respawn_err
-				end
-			else
-				schedule_post_teleport_check(point, tolerance)
-				return true, nil, "respawn"
-			end
+			return nil,
+				"server-authoritative teleport is required on dedicated servers; "
+					.. "this client has no server-visible trigger configured"
 		end
 	end
 
@@ -552,7 +395,7 @@ function adapter.teleport(point, tolerance)
 		return nil, "no supported teleport API accepted the request"
 	end
 
-	local location, location_err = adapter.get_location()
+	local location, location_err = get_actor_location(actor)
 	if not location then
 		return nil, "teleport was called but verification failed: " .. location_err
 	end
@@ -567,8 +410,79 @@ function adapter.teleport(point, tolerance)
 	if distance > tolerance then
 		return nil, string.format("teleport was rejected or corrected (distance %.1f)", distance)
 	end
-	schedule_post_teleport_check(point, tolerance, { 750 })
+	schedule_post_teleport_check(actor, point, tolerance, { 750 })
 	return true, nil, "direct"
+end
+
+function adapter.teleport(point, tolerance)
+	local actor, controller, err = adapter.get_player_actor()
+	if not actor then
+		return nil, err
+	end
+	return teleport_actor_to_point(actor, controller, point, tolerance)
+end
+
+function adapter.teleport_controller(controller, point, tolerance)
+	controller = unwrap(controller)
+	if not is_valid(controller) then
+		return nil, "target player controller is unavailable"
+	end
+	local actor = get_actor_for_controller(controller)
+	if not actor then
+		return nil, "target player pawn is unavailable"
+	end
+	return teleport_actor_to_point(actor, controller, point, tolerance)
+end
+
+function adapter.parse_chat_message(chat_message)
+	local candidates = { chat_message }
+
+	chat_message = unwrap(chat_message)
+	if chat_message ~= nil then
+		table.insert(candidates, chat_message)
+	end
+
+	if type(chat_message) == "table" then
+		for _, key in ipairs({ "ChatMessage", "Message", "Payload", "Arg1", "Param1" }) do
+			local nested = chat_message[key]
+			if nested ~= nil then
+				table.insert(candidates, unwrap(nested))
+			end
+		end
+	end
+
+	for _, payload in ipairs(candidates) do
+		if payload ~= nil then
+			local message = read_member(payload, "Message")
+				or read_member(payload, "Text")
+				or read_member(payload, "Msg")
+			local sender = read_member(payload, "Sender")
+				or read_member(payload, "SenderName")
+			local sender_player_uid = read_member(payload, "SenderPlayerUId")
+				or read_member(payload, "PlayerUId")
+				or read_member(payload, "SenderUid")
+			if message ~= nil then
+				return {
+					message = tostring(message),
+					sender = sender and tostring(sender) or "<unknown>",
+					sender_player_uid = sender_player_uid,
+				}
+			end
+		end
+	end
+
+	return nil, "chat message text is unavailable"
+end
+
+function adapter.has_authority(object)
+	object = unwrap(object)
+	if not is_valid(object) then
+		return false
+	end
+	local ok, has_authority = pcall(function()
+		return object:HasAuthority()
+	end)
+	return ok and has_authority == true
 end
 
 return adapter
