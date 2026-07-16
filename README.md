@@ -51,8 +51,6 @@ After reaching the location you want to save in-game:
 - You can save up to **9 teleport points**.
 - 可在不同楼层、房间或建筑区域记录多个坐标。
 - You can record points across different floors, rooms, or building areas.
-- 使用命令 `!tp 1` 到 `!tp 9` 可传送到 `teleports.json` 中定义的前 9 个位置。
-- Use commands `!tp 1` to `!tp 9` to teleport to the first 9 locations defined in `teleports.json`.
 
 通过这种方式，玩家可以快速在基地不同楼层、功能区或建筑之间进行移动，无需再反复攀爬楼梯。
 With this method, players can quickly move between different base floors, functional zones, or buildings without repeatedly climbing stairs.
